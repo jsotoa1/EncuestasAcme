@@ -24,9 +24,6 @@ namespace SurveyAcme.Api.Controllers
         public async Task<IActionResult> CreateSurvery(SurveyCreateIn request)
         {
             var response = await _service.RegisterSurvey(request);
-            request.Id = response.ID;
-            request.Link = response.Message;
-            await _service.UpdateSurvey(request);
             return Ok(response);
         }
 

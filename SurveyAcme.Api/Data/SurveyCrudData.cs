@@ -48,22 +48,22 @@ namespace SurveyAcme.Api.Data
 
         public async Task<ResultOut> RegisterSurvey(SurveyCreateIn request)
         {
+            Guid guid = Guid.NewGuid();     
             DataAccess.Entities.Survey survey = SetSurvey(request);
-
             await _context.Survey.AddAsync(survey);
-
             int rows = await _context.SaveChangesAsync();
             if (rows == 0) throw new CustomException("No fue posible registrar.");
 
-            string surveyLink = await GenerateSurveyLink(survey.Id, survey);
-
-            return new(survey.Id, true, surveyLink, string.Empty);
+            request.Link = GenerateSurveyLink(guid.ToString(), survey);
+            await UpdateSurveyLink(survey, request.Link);
+            return new(survey.Id, true, request.Link, string.Empty);
         }
 
-        private async Task<string> GenerateSurveyLink(int surveyId, DataAccess.Entities.Survey surveyFields)
+        private static string GenerateSurveyLink(string guid, DataAccess.Entities.Survey surveyFields)
         {
             string baseUrl = "https://localhost:7006/api/SurveyCrud/InsertSurvey";
-            string queryParams = $"surveyId={surveyId}";
+            string queryParams = $"Id={surveyFields.Id}";
+            queryParams += $"Guid={guid}";
 
             int index = 0;
             foreach (var field in surveyFields.SurveyField)
@@ -76,21 +76,17 @@ namespace SurveyAcme.Api.Data
                 queryParams += $"&Fields[{index}].Type={field.Type}";
                 index++;
             }
-
             Uri uri = new Uri($"{baseUrl}?{queryParams}");
             return uri.AbsoluteUri;
         }
 
-        public async Task<bool> UpdateSurvey(SurveyCreateIn request)
+        public async Task<bool> UpdateSurveyLink(DataAccess.Entities.Survey surveyFind, string link)
         {
             try
             {
-                DataAccess.Entities.Survey surveyFind = await _context.Survey.FirstOrDefaultAsync(c => c.Id == request.Id && !c.Deleted);
-
                 if (surveyFind is null) throw new CustomException("La encuesta que intenta actualizar no existe.", HttpStatusCode.NotFound);
 
-               SetSurveyUpdate(surveyFind, request);
-               _context.Survey.Update(surveyFind);
+               surveyFind.Link = link;
 
                 int rows = await _context.SaveChangesAsync();
                 if (rows == 0) throw new CustomException("No fue posible insertar el link.");
@@ -102,6 +98,30 @@ namespace SurveyAcme.Api.Data
                 return false;
             }
         }
+
+        //public async Task<bool> UpdateSurvey(SurveyCreateIn request)
+        //{
+        //    try
+        //    {
+        //        DataAccess.Entities.Survey surveyFind = await _context.Survey
+        //            .FirstOrDefaultAsync(c => c.Id == request.Id && !c.Deleted);
+
+        //        if (surveyFind is null) throw new CustomException("La encuesta que intenta actualizar no existe.", HttpStatusCode.NotFound);
+
+        //        //SetSurveyUpdate(surveyFind, request);
+        //        surveyFind.Link = request.Link;
+        //        // _context.Survey.Update(surveyFind);
+
+        //        int rows = await _context.SaveChangesAsync();
+        //        if (rows == 0) throw new CustomException("No fue posible insertar el link.");
+
+        //        return true;
+        //    }
+        //    catch (Exception)
+        //    {
+        //        return false;
+        //    }
+        //}
 
         public async Task<ResultOut> InsertSurvey(List<SurveyFieldInsert> fields)
         {
@@ -127,6 +147,7 @@ namespace SurveyAcme.Api.Data
             {
                 Name = request.SurveyName,
                 Description = request.SurveyDescription,
+                Link = request.Link,
                 SurveyField = SetSurveyField(request.ListSurveyFields),
                 CreationUser = "REGISTER"
             };
@@ -145,10 +166,10 @@ namespace SurveyAcme.Api.Data
 
         private static void SetSurveyUpdate(DataAccess.Entities.Survey surveyFind, SurveyCreateIn request)
         {
-            surveyFind.Name = surveyFind.Name;
-            surveyFind.Description = surveyFind.Description;
+            surveyFind.Name = request.SurveyName;
+            surveyFind.Description = request.SurveyDescription;
             surveyFind.Link = request.Link;
-            surveyFind.SurveyField = surveyFind.SurveyField;
+            surveyFind.SurveyField = SetSurveyField(request.ListSurveyFields);
             surveyFind.ModificationUser = "REGISTER";
             surveyFind.ModificationDate = TimeZoneHelper.Now;
         }

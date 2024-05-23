@@ -1,16 +1,9 @@
-﻿using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
-using SurveyAcme.Api.Data;
+﻿using SurveyAcme.Api.Data;
 using SurveyAcme.DataAccess.Context;
-using SurveyAcme.Models;
 using SurveyAcme.Models.Inputs;
 using SurveyAcme.Models.Outputs;
 using SurveyAcme.Models.Utilities;
-using System.IdentityModel.Tokens.Jwt;
 using System.Net;
-using System.Reflection.Metadata;
-using System.Security.Claims;
-using System.Text;
 
 namespace SurveyAcme.Api.Business
 {
@@ -69,6 +62,7 @@ namespace SurveyAcme.Api.Business
 
         public async Task<ResultOut> InsertSurvey(List<SurveyFieldInsert> fields)
         {
+            TypeValid(fields);
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
@@ -88,31 +82,46 @@ namespace SurveyAcme.Api.Business
             }
         }
 
-        public async Task<bool> UpdateSurvey(SurveyCreateIn request)
+        public bool TypeValid(List<SurveyFieldInsert> fields)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            bool result = false;
             try
             {
-                var update = await _surveyCrudData.UpdateSurvey(request);
-                await transaction.CommitAsync();
-                return true;
+                fields.ForEach(field =>
+                {
+                    result = !ValueValid((DataType)Enum.Parse(typeof(DataType), field.Type), field.Value) ? throw new CustomException("Ocurrió un problema al intentar validar el tipo de dato, Unicos disponibles Texto, Numero y Fecha", HttpStatusCode.InternalServerError) : true;
+                });
             }
-            catch (CustomException)
+            catch (Exception ex)
             {
-                await transaction.RollbackAsync();
-                throw;
+                throw new CustomException("Ocurrió un problema al intentar validar el tipo de dato, Unicos disponibles Texto, Numero y Fecha", ex.ToString(), HttpStatusCode.InternalServerError);
             }
-            catch (Exception)
+            return result;
+        }
+
+        public bool ValueValid(DataType type, string value)
+        {
+            switch (type)
             {
-                await transaction.RollbackAsync();
-                return false;
+                case DataType.Texto:
+                    return !string.IsNullOrWhiteSpace(value) && value.All(char.IsLetter);
+                case DataType.Numero:
+                    return decimal.TryParse(value, out _);
+                case DataType.Fecha:
+                    return DateTime.TryParse(value, out _);
+                default: return false;
             }
         }
+
+        //public async Task<bool> UpdateSurvey(SurveyCreateIn request)
+        //{
+        //        return await _surveyCrudData.UpdateSurvey(request);
+        //}
 
         public TokenOut GenerateJwtToken()
         {
             JwtService jwtService = new();
-            TokenOut token = jwtService.GenerateToken( 20, "");
+            TokenOut token = jwtService.GenerateToken(20, "");
             return token;
         }
 

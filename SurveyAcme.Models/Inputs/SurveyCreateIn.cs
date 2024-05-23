@@ -16,4 +16,11 @@
         public char Required { get; set; }
         public string Type { get; set; } = string.Empty;
     }
+
+    public enum DataType
+    {
+        Texto = 0,
+        Numero = 1,
+        Fecha = 2
+    }
 }
